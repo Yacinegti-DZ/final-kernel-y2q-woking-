@@ -21,11 +21,11 @@ jobs:
            bzip2 libbz2-dev squashfs-tools pngcrush schedtool dpkg-dev \
            liblz4-tool optipng libssl-dev python-is-python3 python3-virtualenv
 
-      # Download and setup proton-clang (modern recommended toolchain)
-      - name: Download Proton Clang
-        run: |
-          mkdir -p toolchain/clang
-          curl -L https://github.com/kdrag0n/proton-clang/releases/download/clang-r443784c-1/proton-clang-r443784c-1-linux.tar.xz | tar -xJ -C toolchain/clang --strip-components=1
+     - name: Download and extract Android Clang toolchain
+  run: |
+    mkdir -p toolchain/clang
+    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz -O clang.tar.gz
+    tar -xzf clang.tar.gz -C toolchain/clang --strip-components=1
 
       # Export environment variables for clang build
       - name: Set environment variables for build
