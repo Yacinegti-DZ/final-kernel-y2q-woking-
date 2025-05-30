@@ -3,55 +3,58 @@ on:
   workflow_dispatch:
 
 jobs:
-
   buildkernel:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repository
+      # Checkout repo and submodules (important to avoid missing files)
       - uses: actions/checkout@v4
-      
+        with:
+          submodules: recursive
 
-      - name: Display Python version
-        run: python --version
-
-      # Setup environment
+      # Install required dependencies
       - name: Setup environment
         run: |   
-            sudo apt-get update && sudo apt-get install -y \
-             bc flex git ccache automake lzop bison gperf build-essential \
-            zip curl zlib1g-dev g++-multilib python3-networkx libxml2-utils \
-            bzip2 libbz2-dev squashfs-tools pngcrush schedtool dpkg-dev \
-            liblz4-tool optipng libssl-dev python-is-python3 python3-virtualenv
-            
-            # Setup repo
-            mkdir -p ~/.bin
-            PATH="$HOME/.bin:$PATH"
-            curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
-            chmod a+rx ~/.bin/repo
-            
-      - name: Display Python version
-        run: python --version
+          sudo apt-get update && sudo apt-get install -y \
+           bc flex git ccache automake lzop bison gperf build-essential \
+           zip curl zlib1g-dev g++-multilib python3-networkx libxml2-utils \
+           bzip2 libbz2-dev squashfs-tools pngcrush schedtool dpkg-dev \
+           liblz4-tool optipng libssl-dev python-is-python3 python3-virtualenv
 
-      # Set permissions
-      - name: Set permissions
-        run: chmod +x build_kernel.sh
-        
-
-      # Build kernel with debug mode
-      - name: Build kernel
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHATID: ${{ secrets.TELEGRAM_CHATID }}
+      # Download and setup proton-clang (modern recommended toolchain)
+      - name: Download Proton Clang
         run: |
-          set -e
-          bash -x build_kernel.sh
+          mkdir -p toolchain/clang
+          curl -L https://github.com/kdrag0n/proton-clang/releases/download/clang-r443784c-1/proton-clang-r443784c-1-linux.tar.xz | tar -xJ -C toolchain/clang --strip-components=1
 
-      # Package kernel
+      # Export environment variables for clang build
+      - name: Set environment variables for build
+        run: |
+          echo "export PATH=$(pwd)/toolchain/clang/bin:\$PATH" >> $GITHUB_ENV
+          echo "export CC=clang" >> $GITHUB_ENV
+          echo "export CROSS_COMPILE=" >> $GITHUB_ENV
+          echo "export ARCH=arm64" >> $GITHUB_ENV
+          echo "export CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+
+      # Clean previous build files before starting fresh build
+      - name: Clean kernel source
+        run: make mrproper
+
+      # Set defconfig - replace with your device's if needed
+      - name: Set defconfig
+        run: make vendor/y2q_chn_openx_defconfig
+
+      # Build kernel using clang and parallel jobs
+      - name: Build kernel
+        run: make -j$(nproc)
+
+      # Package kernel into AnyKernel3 zip
       - name: Package kernel
         run: |
           git clone https://github.com/Mohamedfullhd/AnyKernel3.git AnyKernel3
           rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/LICENSE AnyKernel3/README.md
+
+          # Copy kernel image - prefer Image.gz-dtb, fallback others
           if [[ -f out/arch/arm64/boot/Image.gz-dtb ]]; then
             cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/Image.gz-dtb
           elif [[ -f out/arch/arm64/boot/Image-dtb ]]; then
@@ -60,14 +63,23 @@ jobs:
             cp out/arch/arm64/boot/Image.gz AnyKernel3/Image.gz
           elif [[ -f out/arch/arm64/boot/Image ]]; then
             cp out/arch/arm64/boot/Image AnyKernel3/Image
+          else
+            echo "No kernel image found!"
+            exit 1
           fi
+
+          # Copy dtbo.img if exists
           if [[ -f out/arch/arm64/boot/dtbo.img ]]; then
             cp out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
           fi
 
-      # Upload kernel artifact
-      - name: Upload kernel to artifact
+          # Zip AnyKernel3 folder for flashing
+          cd AnyKernel3
+          zip -r ../kernel_flashable.zip .
+
+      # Upload the flashable kernel zip as artifact
+      - name: Upload kernel artifact
         uses: actions/upload-artifact@v4
         with:
-          name: output_kernel
-          path: AnyKernel3/*
+          name: kernel_flashable_zip
+          path: kernel_flashable.zip
