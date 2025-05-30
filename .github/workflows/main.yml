@@ -1,0 +1,41 @@
+name: Kernel Build
+
+on:
+  push:
+    branches:
+      - main  # or your branch name
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Clang
+        uses: mikeal/setup-clang@v1
+        with:
+          version: '15.0.7'  # or your preferred clang version
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential libncurses5-dev libssl-dev libelf-dev flex
+
+      - name: Export env variables
+        run: |
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "SUBARCH=arm64" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=clang" >> $GITHUB_ENV
+
+      - name: Build kernel
+        run: |
+          make O=out sm8250_defconfig CC=clang
+          make -j$(nproc) O=out CC=clang
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel-build
+          path: out/arch/arm64/boot/Image.gz-dtb
