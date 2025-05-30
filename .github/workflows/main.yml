@@ -21,20 +21,20 @@ jobs:
            bzip2 libbz2-dev squashfs-tools pngcrush schedtool dpkg-dev \
            liblz4-tool optipng libssl-dev python-is-python3 python3-virtualenv
 
-     - name: Download and extract Android Clang toolchain
-  run: |
-    mkdir -p toolchain/clang
-    wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz -O clang.tar.gz
-    tar -xzf clang.tar.gz -C toolchain/clang --strip-components=1
+      - name: Download and extract Android Clang toolchain
+        run: |
+          mkdir -p toolchain/clang
+          wget https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz -O clang.tar.gz
+          tar -xzf clang.tar.gz -C toolchain/clang --strip-components=1
 
       # Export environment variables for clang build
       - name: Set environment variables for build
         run: |
-          echo "export PATH=$(pwd)/toolchain/clang/bin:\$PATH" >> $GITHUB_ENV
-          echo "export CC=clang" >> $GITHUB_ENV
-          echo "export CROSS_COMPILE=" >> $GITHUB_ENV
-          echo "export ARCH=arm64" >> $GITHUB_ENV
-          echo "export CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
+          echo "PATH=$(pwd)/toolchain/clang/bin:\$PATH" >> $GITHUB_ENV
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CROSS_COMPILE=" >> $GITHUB_ENV
+          echo "ARCH=arm64" >> $GITHUB_ENV
+          echo "CLANG_TRIPLE=aarch64-linux-gnu-" >> $GITHUB_ENV
 
       # Clean previous build files before starting fresh build
       - name: Clean kernel source
@@ -54,7 +54,6 @@ jobs:
           git clone https://github.com/Mohamedfullhd/AnyKernel3.git AnyKernel3
           rm -rf AnyKernel3/.git AnyKernel3/.github AnyKernel3/LICENSE AnyKernel3/README.md
 
-          # Copy kernel image - prefer Image.gz-dtb, fallback others
           if [[ -f out/arch/arm64/boot/Image.gz-dtb ]]; then
             cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/Image.gz-dtb
           elif [[ -f out/arch/arm64/boot/Image-dtb ]]; then
@@ -68,12 +67,10 @@ jobs:
             exit 1
           fi
 
-          # Copy dtbo.img if exists
           if [[ -f out/arch/arm64/boot/dtbo.img ]]; then
             cp out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
           fi
 
-          # Zip AnyKernel3 folder for flashing
           cd AnyKernel3
           zip -r ../kernel_flashable.zip .
 
